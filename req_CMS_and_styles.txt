@@ -1,0 +1,187 @@
+- CMYK, CMY, RGB, HSL, LAB, Fulltone (!!!) and Halftones
+
+- style behavior
+	- text style type + graphics style type
+		- Font, Font Style, Leading, Text Effects, Rules, Justification,
+			Style Affects Text Color, 
+			Hang Punctuation, 
+			Point Size, Paragraph Spacing, Spacing %, Range Kerning, Baseline Shift, and Horizontal Scale,
+			Tabs and Margins,
+				
+			setting can disable approp. attr.
+			mk:@MSITStore:C:\Program%20Files\Macromedia\FreeHand%20MXa\English\Using%20FreeHand%20MX\fhusing.chm::/08_typ40.htm#wp67305
+
+			No Settings - Restore Original Values - Restore Program Defaults
+	- name field
+	- parent field
+	- bool disable stroke attrs.
+	- bool disable fill attrs.
+	- effects tree
+		- nodes: stroke, fill, effect
+		- effect over effect
+		- parallel effects
+	- effects implementation
+	- predefined styles
+	- style edit behavior
+		- modyfying a style does not affect its objects (it creates a modified copy)
+		- modifying the object style does not affect the initial style (object will have a modified copy of the initial style)
+		- any style can "redefine" (replace) any other style
+		- any style (even modified) can be duplicated as new
+		- any style (even modified) can be dragged to set to the selection
+- copy-paste attributes (i. e. style)
+- multiple stroke-fill renders per shape
+	- fixed strokes and textures
+	- procedural strokes and textures
+	- cached raster effects with ducoment resolution
+	- rendering time prediction (to distinct the simple rendering and rendering requiring caching)
+	- rendering effects (i. e. take existing raster, applying effect, painting the raster)
+
+
+=======================================================
+
+First, we need to make styling working equally to freehand because that's the
+part where freehand is most strong at
+ For this to happen we need to keep all
+styles globally in the stylemodel. It is important to access styles using an
+index (like in our model) to be easier for saving/loading
+ OK
+ Styles can be shared (and as such if
+changed, all depending shapes need to repaint as well) or being local (but can
+be made shared)
+ We should follow the structure of the
+model that is, we have style nodes, a style controller, a style model. The
+controller provides the available properties of the style-part,
+setting/retrieving them as well as painting them.
+ Style nodes?
+ It is *very* important to provide some
+kind of pipeline during painting styles. For example when you look at freehand,
+you can create i.e. a fill which by itself contains a path expand effect etc.
+ You mean structure itself?
+ Yes, actually the "data" keepers like in
+our model
+ OK
+ so that you can extend and provide your
+own styles / controllers besides the builtin ones as wlel
+ Basically the pipeline handles the
+painting using the style controllers
+ As said, some style controllers may paint,
+some may "only" modify a given input (path) etc.
+ Play around with Freehand to see what I
+mean
+ Surely.
+ Style Controllers to also need to provide
+information on what childs they may contain and which styles that may become
+child of
+ so this is very equal to our design model
+ A style by itself consists if N style
+parts
+ i.e. stroke + stroke + fill
+ Again, look at freehand to see what I mean
+ I follow you, all right.
+ Okay. Besides that I think we should have
+three types implemented first to prove the model works:
+ solid fill; solid stroke and "expand path"
+effect
+ (solid fill / stroke == "basic" in
+freehand)
+
+
+
+ now the next topic which is VERY important
+about colors
+ like in freehand, we do reference colors
+ that is, our style model needs to keep a
+(grouped) list of available color swatches
+ again, all indexed
+ again, shared or local
+ I see pattern here, but not a base class.
+ hmm, what u mean?
+[28.12.2011 11:47:44 | Изменены 11:47:58] Ye. K.: Styles, colors, nodes,
+annotations. The indexing approach is the same, but no sense to generalize it
+(just a comment).
+ If I switch from shared style to local, it may be
+copied and assigned a new index. If I switch back, should the local style be
+deleted, or only surppressed, or change (rewritten) equally with each shared
+style change. What do you think?
+ hmm
+ actually it is more complex in freehand
+ You cannot really switch to local style
+but you can override it somewhat.
+ Try this:
+ Create a new style and put it into your
+styles library, then assign it to a shape
+ now assign that style to a second shape as
+well but this time, modify the object's style (i.e. add a stroke or remove an
+existing one)
+ in your style library list you will see
+that there's a small "plus sign" on the applied style because you are style
+using the shared style on the object but with local modifications
+ so we need something like local style;
+global style and combination of global style + local changes (difference)
+ Aha, got you.
+ I.e. each local feature has a flag "overriding the
+associated shared style".
+ Give yourself a couple of hours and play
+around with Freehand you'll better understand it's power :) Also try various
+combinations like deselecting everything, modifying the current style, creating
+a new shape then etc etc
+ yes
+ that is especially important for removing
+styles from the global style
+ OK
+ but you can also use your local
+modifications to "redefine" the global style
+ Styles can be edited / handled completely
+independantly from objects that's why we'll keep them all global and indexed
+ Play around with it you'll see what I am
+trying to say
+ It actually is a _very_ neat system
+ Now about the linked color swatches which
+work more or less equal to styles (i.e. you can redefine them, use shared or
+local ones etc.)
+
+a color swatch defines:
+- the type (CMYK, RGB, HSL)
+- name
+- spot or process mode
+- cached render color (rgb)
+
+The cached render color is what our render pipeline will use for rendering. This
+value needs to be INVALIDATED everytime you change the color profile in the
+document. For this to happen, we will use LittleCMS (put it into third party
+directory) to convert i.e. between CMYK -> RGB (I will send you my test project
+for this). We need to define in the document: - Name of the ICC Profile to be
+used for CMYK -> RGB; Render Mode (RGB, CMYK, if the former is set, RGB Colors
+get rendered as RGB otherwise if the later it set, RGB Colors get first
+converted using standard formula to CMYK, then again the CMYK gets back
+converted into RGB using the color profile specified)
+ the latter part (proper rendering using
+color profiles and handling DIFFERENT Types of colors) is one of the major
+points
+ As always.. 100% MX Compability wished
+ Because the styling & color model is
+really the most powerful one I know of (much more than Illustrator)
+ I did not compare them in this part. I know that
+Photoshop has very strong color management system, don't know about AI.
+[28.12.2011 12:01:01 | Изменены 12:01:12] Ye. K.: OK, I got your thoughts about
+color conversion.
+ Let me send you my test project as well
+ Surely.
+ it is using my mac's color profiles but
+you can use one of the adobe's free to download ones as well
+ Any local machine has many profiles preinstalled.
+[28.12.2011 12:02:25] *** Alexander Adam отправил Archiv.zip ***
+ For Expressive, we should be able to
+specify the color profiles in the document per name but please you might want to
+"hardcode" the cmyk->rgb profile for now as the other stuff is more important
+ You mean hardcoding one predefined profile?
+ Any new document will have something assigned by
+default, I guess. In final app.
+ yes for now hardcoding the path to the icc
+profile or just throw some cmyk->rgb icc profile into appdata and always use
+that
+ OK this looks reasonable.
+ making the style & color model working
+perfectly right and stable is more important for now:)
+
+

@@ -1,0 +1,7 @@
+h1. Optimizing rendering performance. Policy for calling painter save/restore.
+
+There are many cases when functions inside or outside of the Expressive application get QPainter* for painting something. To keep performance as high as possible, the functions should be built according to the following:
+1. If the function makes only one or several of setBrush, setPen, setRenderHints, setFont to change the painter's parameters, it doesn't not call painter save/restore. The function should be aware that other functions change these settings in unpredictible manner. If a function changes any other parameter of the painter, it should calll painter->save() before the change and painter->restore() after the change.
+2. If the function takes QRectF specifying the area, within which the painting will be restricted, it should check if the given rectangle intersects with the shape(s) it'd like to draw. On no intersection, the painting function should skip any calling painter's draw* functions at all, and possibly skip setting painter paramters, save/restore etc.
+
+

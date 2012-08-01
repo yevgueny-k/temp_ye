@@ -1,0 +1,65 @@
+h1. Actions performed by the selection model's setTransform and applyTransform functions.
+
+Note for clients: for node transforms, only one of all the applicable selection models
+	can have non-identity transform at a time. This includes both the main selection trasform
+	(within QEDesignDocument) and trasforms of any client's selection model instances.
+
+selection model			controllers
+	setTransform
+						1 save undo data
+							old editing shape tr state for all nodes (sel & non-sel)
+							old annotation transforms and data
+						2 set mTr = new transform
+						3 update editing shape tr
+							(call for all nodes (sel & non-sel),
+							since non-selected nodes will ignore editing shape tr on applyTransform)
+						4 recalc all annotation transforms
+							= node tr * editing shape tr
+							(call invalidate for all selected and dependent annotations)
+						5 save redo data
+							new editing shape tr state for all nodes (sel & non-sel)
+							new annotation transforms and data
+					Steps 1..5 are executed by the selection model.
+					Undo/redo is handled by:
+						the selection model (editing shape tr),
+						smNotifySetAnnotationTransform (setting the annot. transform)
+						smNotifySetAnnotationData (setting the annot. data)
+
+	applyTransform
+						1 save undo data
+							old node transforms and data
+							old annotation transforms and data
+							editing shape tr for all nodes (sel & non-sel)
+							old selection transform
+						2 apply to selected nodes
+							(but non-selected nodes are notified too)
+		new node tr = old node tr * editing shape tr;
+						3 apply to independent annotations for non-selected nodes:
+							!!!should change local pos within the node,
+								and nothing to do with annotations!!!
+							so that
+		new local pos * node tr == old local pos * node tr * editing shape tr;
+			i.e. new local pos == old local pos * node tr * editing shape tr * (node tr)^-1
+						4 new editing shape tr = 1
+						5 recalc all selected and dependent annotations,
+							including data
+							= new or unchanged local pos * new or unchanged node tr
+							(call invalidate for all selected and dependent annotations)
+						6 set mTr = 1
+						7 save redo data
+							new node transforms and data
+							new annotation transforms and data
+							new editing shape tr = 1
+							new selection transform = 1
+					Steps 1, 6, 7 are executed by the selection model.
+					Step 2 is handled by smNotifySetNodeTransform(old node tr * editing shape tr)
+						(for selected nodes only, ignore for non-selected - or custom,
+						more complex behavior)
+					Step 3 is handled by smNotifySetAnnotationTransform(node tr * editing shape tr),
+						directly accessing the node data.
+					Steps 4, 5 (resetting editing shape transforms
+						and recalculating all annotation transforms)
+						is the responsibility of the selection model.
+					Undo/redo is handled by:
+						the selection model (editing shape tr, selection transform),
+						all smNotifySet(Node|Annotation)(Transform|Data).

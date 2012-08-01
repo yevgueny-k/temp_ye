@@ -1,0 +1,96 @@
+h1. Developing custom snap adapters
+
+Custom snap adapters help to increase performance of the human designer when drawing/editing shapes having some special geometry. Expressive offers 4 types of built-in snaps (dot grid, horiz. and vert. line guides, document shapes, combinations of the former three snaps and any custom snaps). Adding the support for a custom snap implies the following:
+- implement custom snap parameters set (QEIDesignSnapPara),
+- implement custom snap adapter (QEIDesignSnapAdapter - 4 functions),
+- enable the snap in the document snap controller.
+
+The simple example of custom snap adapter is attached to this article (RadialSnap.h, RadialSnap.cpp).
+This snap adapter snaps the given point or points to the rays starting from the specified point.
+Below, there is the list of functions and code pieces requiring the most of your attention
+for understanding this example.
+
+RadialSnapPara:
+
+double paramAngleStep() - the angle between any two rays(the rays starting from 3 hr. o'clock and following counter-clockwise with the step paramAngleStep()).
+
+QPointF paramRaySourcePoint() - the origin point of the rays.
+
+In the example, all the param* functions have correlating setParam* functions. Other RadialSnapPara functions are typical for any parameters set based on QEIDesignSnapPara, differing only in the initial values and the list of involved properties.
+
+RadialSnapAdapter:
+
+virtual void snap(QSharedPointer<QEIDesignSnapDescriptor> context);
+This is the main function of this snap kind, containing the snap algorithm.
+The heart of the algorithm is finding the ray nearest to the snap origin point and calculate the point, projected from the snap origin point to that ray. After the projection is calculated, the snap algorithm checks if it is not too far from the snap origin point to be considered as actual snap.
+...
+  RadialSnapPara* paraImpl = static_cast<RadialSnapPara*>(context->info().data());
+...
+  // The snap algorithm.
+  double angle = QLineF(paraImpl->paramRaySourcePoint(), context->sourcePoint()).angle();
+  double rayAngle = int (angle / paraImpl->paramAngleStep() + 0.5) * paraImpl->paramAngleStep();
+  QLineF ray = QLineF::fromPolar(1., rayAngle);
+  QPointF projection = projectedPoint(context->sourcePoint(), ray);
+
+  if (
+      qeMaxAxisDistance(context->sourcePoint(), projection)
+      <= mDocument->snapController()->varMaxSnapDistance(mDocument->snapController()->zoomOfActiveView())
+  )
+  {
+...
+Note that snap distance is expressed in scene coordinates and thus depends on the active view zoom. When painting the snap results, the sensitive zone, i. e. geometric rectangle around the projected point, within which the origin point will be considered snapped, will have the width and height twice the max. snap distance, taking into account the view zoom. See details in QEIDesignSnapController varMaxSnapDistance() and related functions.
+
+virtual QList<QEUpdatingRect> snapGetPaintAreas()
+virtual void snapPaint(QSharedPointer<QEIDesignSnapDescriptor> context, QPainter* painter, const QRectF& rect)
+The two functions to support snap results painting. snapGetPaintAreas() returns the list of rectangles needed to be updated on the screen for painting all snap elements.
+snapPaint() performs painting within the extent of the given rect. 
+Note that both functions combine using the standard paint implementation in the snap controller
+(QEIDesignSnapController snapGetPaintAreas() and snapPaint()) with the custom drawing, namely
+the ray which is the target of the snap is drawn by explicit call. See below.
+
+1. snapGetPaintAreas() redirects calculating the small rects around the source and target snap points to the snap controller:
+retval.append(mDocument->snapController()->snapGetPaintAreas(context, destViews));
+
+2. snapPaint() redirects drawing the rects around the source and target snap points to the snap controller as well:
+QEIDesignSnapController* c = mDocument->snapController();
+...
+c->snapPaint(context, painter, rect);
+
+3. snapGetPaintAreas() calculates the rectangle containing the snap target ray (in the form of segment starting from the ray source point and ending at the snapped point):
+retval.append(QEUpdatingRect(QRectF(paraImpl->paramRaySourcePoint(), context->snappedPoint()).adjusted(-1., -1., 1., 1.), 0));
+The adjusted() is the simplest means for compensating float-to-int coordinate conversions and taking into account the minimal drawing pen width.
+The compensation will depend on view zooming, so the implementor would choose to compensate with the function like:
+  inline QRectF lineToRect1(const QPointF& p1, const QPointF& p2, double zoom)
+  {
+    if (zoom <= 0.) zoom = 1.;
+    return QRectF(p1, p2).normalized().adjusted(-0.5/zoom, -0.5/zoom, 0.5/zoom, 0.5/zoom);
+  }
+
+4. snapPaint() draws the target ray segment directly:
+QEIDesignSnapController* c = mDocument->snapController();
+  QRectF scale = painter->combinedTransform().mapRect(QRectF(0., 0., 1., 1.));
+  RadialSnapPara* paraImpl = static_cast<RadialSnapPara*>(context->info().data());
+...
+    painter->setPen(c->varPenTarget(scale.width()));
+    painter->drawLine(paraImpl->paramRaySourcePoint(), context->snappedPoint());
+Note that in this example the pen used is taken from the snap controller (varPenTarget()).
+It is already tuned to display correctly at the current zoom.
+
+The code inserting the snap adapter and snap parameters into the target objects, to enable the custom snap:
+  QEIDesignDocument* d = dynamic_cast<QEIDesignDocument*>(this->mApp->documentController()->activeDocument());
+  QVariant x;
+  if (d)
+  {
+    QList<QSharedPointer<QEIDesignSnapAdapter> > adapters;
+      adapters.append(QSharedPointer<QEIDesignSnapAdapter>(new RadialSnapAdapter(d)));
+    QList<QSharedPointer<QEIDesignSnapPara> > snapPara;
+      snapPara.append(QSharedPointer<QEIDesignSnapPara>(new RadialSnapPara(d, true)));
+
+    d->snapController()->setSnapAdapters(adapters, kDesignSnapAdapterSetAdd);
+    d->setSnapPara(snapPara, kDesignSnapParaSetReplaceThisTypeByRef);
+  }
+  else
+  {
+    qDebug() << "Failed to add radial snap adapter to the document (no active document).";
+  }
+Here, this->mApp is the reference to the Expressive application.

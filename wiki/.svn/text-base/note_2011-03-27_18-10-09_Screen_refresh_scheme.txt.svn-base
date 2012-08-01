@@ -1,0 +1,19 @@
+h1. Designer screen refresh method
+
+Expressive uses the following means to display the design and all necessary visual artifacts.
+1. QGraphicsItem::paint() for all graphics items.
+2. Direct calling the combination of
+QGraphicsView::updateScene(scene rectangles)
+and QGraphicsView::viewport()->repaint(view rectangle)
+The first call invalidates the scene objects visual representation within the given rectangles, the second performs repaint. As a consequence, the following QGraphicsView functions are called:
+drawBackground()
+drawForeground()
+paintEvent()
+The Expressive implementation of QGraphicsView (QEDesignGraphicsView) overrides these functions to additionally perform painting the necessary visual elements that are not graphics items by their nature. For example: grid dots, guide lines, snap highlighting.
+Scene rectangles for QGraphicsView::updateScene() are set by any clients via QEIDesignDocument interface:
+addForUpdateSceneRects()
+addForUpdateShapeRect()
+When it's time to paint, the client calls QEIDesignDocument::updateSceneRects(),
+which, in turn (through series of nested calls), calls QGraphicsView updateScene() and viewport repaint().
+At this moment, all the rectangles, added into the update queue by previous calls of addForUpdate*,
+will be updated with the QGraphicsView drawBackground(), drawForeground(), paintEvent(), as stated above.

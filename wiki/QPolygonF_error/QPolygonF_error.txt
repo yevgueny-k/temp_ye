@@ -1,0 +1,15 @@
+Qt 4.6.3 QPolygonF::united() function is buggy.
+
+Let
+A = QPolygonF(QPointF(285.671, 38.1838) QPointF(348.744, 101.256) QPointF(330, 120) QPointF(266.927, 56.9275) QPointF(285.671, 38.1838) ) 
+B = QPolygonF(QPointF(285.671, 38.1838) QPointF(390.364, 142.877) QPointF(360, 173.241) QPointF(255.307, 68.548) QPointF(285.671, 38.1838) ) 
+
+Then
+Qt: C = A united B == QPolygonF(QPointF(285.671, 38.1838) QPointF(348.744, 101.256) QPointF(348.744, 101.256) QPointF(285.671, 38.1838) ) 
+This is an error.
+
+Really, for the specified A and B
+C == B,
+because A is subset of B.
+
+See img_1 (A), img_2 (B), img_3 (C)

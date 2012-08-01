@@ -1,0 +1,565 @@
+################## CURRENT WORKS ##################
+
+last changes in:
+	QEIDesignNodeController.h
+	QEIDesignStyleModel.h
+	QEDesignStyleModel.h
+	QEDesignStyleModel.cpp
+	QEDesignModelNodeItem.h
+	QEDesignModelNodeItem.cpp
+	QEDesignLayerController.cpp
+	QEDesignAbstractShapeController.cpp
+	DesignDebug.cpp
+	todo.txt
+
+- fix gradient size/angle/position on
+	- shape being skewed
+	- when gradient is bound to scene coordinates
+	- dragging rect. corner annotations switches off the gradient fill style
+
+- stroke, fill shape box
+	- the box = that of localPath or stroke path expansion
+		Note:
+			- in case of top-level stroke/fill, the local path is that of node
+			- in case when the stroke/fill node is not the top level, factually, 
+				- the localPath parameter may contain path that is applied upper-level vector effects
+				- the stroke (and, maybe, fill) node may be subclassed (the description substituted by top-level effect's settings)
+- effect shape box
+	- normal vector effect
+		- if no children
+			- return an empty rect.
+		- strokes/fills
+			- a) single vector effect (vector effects list is empty)
+				- apply effect to localPath
+			- b) stack of vector effects
+				- push itself onto the stack
+				- process localPath
+			- common) non-top-level effect only
+		- effect subnodes
+			- if the effect is normal vector effect
+				- push itself into vector effects sequence
+			- if the effect is rendered image raster adjustment effect
+				- ignore subnodes, or get their shape boxes like in normal raster effect
+			- get the modified path and shape box of each effect entry on this level
+		- if the effect is a raster effect
+			- get source data from layer buffer, simulate raster processing as necessary
+			- if necessary, use local path (possibly modifed by vector effects) as area for predicting the adjustments area
+			- add the resulting boxes into retvals
+		- add all subnode paths/boxes into the given retvals
+
+
+- stroke, fill render
+	- the localPath is filled or stroked as necessary onto branch buffer.
+		Note:
+			- in case of top-level stroke/fill, the local path is that of node, and the branch buffer is really the node layer buffer
+			- in case when the stroke/fill node is not the top level, factually, 
+				- the localPath parameter may contain path that is applied upper-level vector effects
+				- the stroke (and, maybe, fill) node may be subclassed (the description substituted by top-level effect's settings)
+				- the branch buffer image, factually, is not the node layer buffer image
+- effect render
+	- normal vector effect
+		- if no children
+			- ignore
+		- strokes/fills
+			- single vector effect (vector effects list is empty)
+				- apply effect to localPath before render
+			- stack of vector effects
+				- push itself onto the stack
+				- process localPath
+		- effect subnodes
+			- push itself into vector effects sequence
+		- common for all subnodes
+			- use new branch buffer instead of the given branch buffer if there's at least one effect subnode
+			- call render in ascending visual order 
+			- if the render target branchBuffer into the given branch buffer
+	- normal raster effect (adding drawings and/or adjusting the node raster)
+		- if no children
+			- ignore
+		- any children
+			- create branchBuffer
+			- common for all subnodes
+				- call render in ascending visual order 
+					- strokes/fills proceed normally on the local path, render onto branch buffer
+					- effects+subnodes are rendered onto branch buffer
+			- process the raster effect
+			- merge raster effect and/or branchBuffer into layerBuffer
+	- rendered image raster adjustment effect
+		- ignore subnodes, or render them onto a temporary branch buffer like in normal raster effect
+		- if necessary, use local path as area for making adjustments
+		- get source data from layer buffer + opt. the given branch buffer + opt. the temporary branch buffer for lower-level nodes 
+			--> push into the temporary buffer
+		- process the effect
+		- paint the opaque result onto the given branch buffer
+
+
+- same-level-and-parent paths (basic path + effects output) summarize
+- some upper-level vector effects are applied to vector path out of order, before any raster effect took place
+	- vector effects return output path only
+- some vector effects produce paths based on the given raster (for example: vector trace)
+	- vector effects return output path only
+- raster output effects 
+	- unite all rasters that are below them
+	- must return 
+		- distinct raster image (output)
+			- or flag showing that the effect is applied directly to layer image
+		- the path within which their own output is contained
+		- the rectangle within which their subnodes output is contained
+
+- add trLocalToScene, trSceneToView, layerImage to QEIDesignNodeController::specialRender arguments
+- make use of isAffectsStroke, isAffectsFill in the rendering procedures
+
+- fix: smart guide font is always 100% at all zooms.
+- make: make use of color cache value during node rendering (currently, in StyleNodeProcessing* classes, the color is converted directly)
+- make: dragging resize annotations of ellipse and rectangle must change appropriate shape's local cell rect, not its transform
+- ? "Overprint" parameter in strokes and fills
+- fix: pattern pen does not simulate exactly MX offset and scaling of the given pattern
+- make: linear type gradient start, end points are transformed with the target object when the transform box transform is applied 
+	and local coord. system is enabled for this style node
+- adapt layer manager for multithreaded rendering
+	- make a DesignView subclass for rendering output preview 
+
+bbox+style+tolerance:
+
+special render --> 
+	style is not taken into account, special bounding box must be implemented 
+		(shape only / shape + style + tolerance, local coordinates / scene coordinates, 
+		recognize (normal / special / special behind interface) path as source)
+normal render -->
+	a) using default style
+		(normal / special) path + default pen width + tolerance
+	b) using style model style
+		((normal / special) path + tolerance) U ((normal / special) path --> style-calculated box)
+		
+
+- eliminate use of modelScene()
+- remove hit test tolerance and zoom param. from shapeBoxPoolygon
+
+- virtual fns in style processing for:
+	- bounding box based on node path and rendering para
+	- paint3
+	- layer controller supplies QPainter(QTransform()) + 3 distinct transforms
+	- consider additional adjustment of the styled shape bounding box by hit test tolerance,
+		like when using default style. The problem is that QPolygonF united() function is buggy.
+		Maybe, hit testing should be accounted from within the style calculating the box.
+
+- graphics node removal should remove a link to it from the style (+undo/redo)
+- notifyng graph object about any change of its style
+- when inserting a node branch into style, each node in the branch must be checked to be compatible with target style type
+- review uiAssignStyle (base-derived relations, modifications processing, substyles processing)
+
+- rendering procedures for the chosen node types
+	- create lens filling style node
+
+- each style model do/undo/redo op takes care on views updating
+- create some additional predef. styles
+- a dialog with existing styles list + assign style to selection button
+- design debug proc. to create several objects and styles and apply the styles
+
+- dialogs for manipulating styles (node tree view, style list, param boxes)
+
+- implement basic text style functioning
+	- implment kTextStyleNode structure in full
+	- implment kTextFillStyleNode structure
+	- implment kTextStrokeStyleNode structure
+	- partially implement text style rendering and text blocks
+	- design debug proc. to create  several text objects and styles and apply the styles
+
+- effects can be extended / new ones added easily through AddIns / the sdk
+including the options whether they can be merged, subgrouped etc etc but I guess
+you already knew all that :) [15:47:53] Ye. K.: More correctly, I knew that it
+should be. Thanks for notification ;)
+
+=========================
+
+- fixes
+	- lasso fails to select shapes from ftime to time, reason unknown
+	- (? cannot reproduce) fix path editing continuation
+	- (? cannot reproduce) do/undo/redo after creating shapes, setting colors etc. - redo does not work perfectly
+
+	- after rect tool drawing a rect + undo, no timely update of rect area (trash is left)
+	- color mixer with default settings displays lighter colors than the page where that colors are assigned
+	- color mixer refuses to open after six open/close/assign color ops
+	- while drawing line tool's lines after ctrl+1 once, snaps leave trash
+		- same thing after ctrl+1 twice
+		- same thing after ctrl+2
+	- most of snaps leave trash when using line tool
+
+- introduce sibling links (add to model node items tree 3 additional links):
+	- nextSiblingId (null if this item is last sibling of its parent)
+	- prevSiblingId (null if this item is first sibling of its parent)
+	- lastDirectChildId (null if this item has no children)
+	Notes:
+	- these fields are updated only in 3 places where setParent is invoked for this item
+	- firstDirectChildId field is not needed since it coincides with existing firstChildId
+	- node having nextSiblingId null will be lastDirectChildId of its parent
+	- node having prevSiblingId null will have parentId as both its prev. and parent node, and is its parent's firstChildId
+	- operations of finding first, last child nodes will take fixed time in most cases, and log(N) in worst case when
+		the node sought is absolutely topmost node - this should be fixed by keeping global ref to the absolute topmost node
+- introduce a member to track the last (i.e. absolute topmost) node
+
+- introduce document-global state counting into all models containing ui* (do/undo/redo) operations
+	- introduce createUndoCommand option into all ui* operations
+	- introduce separate state counts for
+		- each style instance
+		- each node (node data, node transform, assigned style, i.e. all influencing node shape)
+		- cache couple node shape boxes (local and scene) for kShapeBoxBoundingRectWithStyleAndTolerance
+	- implement two quick and bugless tests
+		- intersection of rectangle with polygon
+		- intersection of polygon with polygon (note: Qt algorithm is buggy)
+
+- finally adapt node and annotation paint2, path, boundingRect, sceneBoundingRect fns for correct operation on zoomed+rotated view
+	- use exact*, shapeBox for ni and ai insteadof *boundingRect
+	- fiv node and ann. contains() function so that they could take the target view, to ensure the correct zoom-dependent test
+- introduce by-index annotations screen updating
+	- dynamic sublayers: non-changing annotations, modified shape annotations, transformed annnotations
+	- each annotation modifier only signals which annotation has to be repainted, layer controller calls paint2 w/o rects processing
+- introduce separate scene (QGraphicsScene) for each nodes layer and distinct scene for annotaitons
+
+- QEDesignSelectionModelUndoSelectionCommand::restoreState
+	- upgrade annotations visibility controller so that it took updateViews parameter
+	- QEUndoSetAnnotationVisibilityCommand::undo() and ::redo() regard updateViews parameter
+- QEDesignModel::uiSetProperty::UndoCommand::undo/redo updates views in case of visual changes
+- updateSceneRects(true) calls need reviewing
+	- eliminate annotations status() and setStatus()
+- after global undo state count has been introduced,
+	ensure the correct views updating (repaint shapes) on executing:
+	- undo insert, do/redo remove QEUndoDesignColorItemInsertOrRemoveCommand
+	- undo/do/redo QEUndoDesignColorItemSetValueCommand
+
+- consider caching annotation's bounding rect (and path?) for each view
+- introduce selected annotations image caching
+	- TB or selection on start drag 1) hide TB anns 2) render all anns in the area of hidden TB anns 3) cache raster of all anns under TB anns 4) show TB anns
+	- TB or selection during drag 1) paint TBTB + cached image instead of TBTB only
+	- TB or selection on end drag 1) show all anns hidden on start drag 2) repaint all anns under TB anns + TB anns as well
+
+
+=========================
+
+Rendering and styles progress.
+
+	+- (50% done, not visible yet) MX-fashioned procedural styles (example: edit style, assign style to object, edit object)
+	+- (80% done, not visible yet) raster input for styles is available on rendering (example: dynamic lens)
+	- custom procedural styles (with test style addin)
+
+	+- (60% done, already visible) fast layer-based rendering system
+	+ free view position on editing (scrolling + scaling + rotating)
+
+What is done
+	+ container for UI windows and controls 300
+	+ interfaces for external addins 200
+	+ basic shape, navigation, selection and edit tools 1000
+	+ snaps 300
+	+ color management 300
+	+ basic layers and rendering 300
+	total 2400
+
+What needs to be done to get some basic usable editor
+	- complete styles functioning 600
+	- complete layers and rendering, increase performance 800
+	- text blocks, text styles 900
+	- copypaste, saveload, printing, export, import 800
+	- additional tools, color pickers, rulers 500
+	- UI windows and controls 600
+	total 4200
+	----------------------------------------------------------------------------------
+	- predefined styles, fonts, colors, textures, gradients 1000
+	- helpfile 400
+	- setup program 300
+	- automatic and manual testing 800
+	total 2500
+
+=========================
+
+- review diagrams
+
+- wiki += article on different memory management models
+	(document/model/subsystem controllers, nodes/annotations, snapping subsystem, color subsystem, styles subsystem, layer controller)
+
+- manual QC test procedures list
+
+=========================
+
+################## LATER STAGE WORKS ##################
+
+- non-development
+	- code review
+		- check the use of static_cast and dynamic_cast on interfaces and extensions respectively
+	- document existing program functionality, in part. features put into test UI mode
+	- review existing diagrams
+	- document existing design where it is very complex
+	- document particular algorithms
+
+- add
+	- bezigon tool
+	- right-click tool behavior
+	- MX-style selecting and dragging distinct path segments or groups of segments
+
+- review / redesign / complete
+	- custom nodes & styles implementation
+		- external user interface above the node private data
+		- external user interface for style processing
+		- externalize node local-to-scene transform member (maybe put into node private data)
+	- avoid use of QPainter transforms in all kinds of painting. QPainter will have trivial full transform scene-view,
+		its clipping rect will always be in view coordinates.
+		Shapes to paint must get a reference to the real scene-view transform along with painter reference.
+		This redesign takes much time for mechanical work, but it is necessary to completely remove trash
+		from all kinds of painted objects, especially snaps (actual on 2012-06-14 19:08:05).
+	- verify/correct mouse hover events on the view that is not active - actions and displays should be adequate, similar to MX
+	- consider passing scene polygon instead of rectangle when calling doPaint in tools etc.
+		This may double painting performance in some cases.
+		Note that due to view rotation, invalid rectangles of a view are, in general, 4-corner polygons in scene coordinates.
+	- layer controller (layer removal, moving nodes between layers, ui new layer insertion, ui layer duplication, ui layer visibility,
+		sending notifications on do/undo/redo ui* commands)
+	- color system
+		- automatic screen repainting
+			- after setting the default style parameters for any of the nodes
+			- when the color that a node or several nodes refer to has changed
+		- Fulltone and Halftone color systems
+		- clean-up CMS profile cache from time to time, i. e. remove non-referenced profiles and send profile removal signal
+		- public CMS events notification (i.e. the client should know when profiles or CMS settings changed)
+	- implement correct prefix keys processing on Mac, similar to what is now in Windows,
+		to ensure the correct design view behavior on pressing ALT, CTRL and SHIFT
+	- improve shape bounding box calculation (take into account join style, line end style, miter limit)
+	- cursors in different states (ensure MX-like if missed anywhere)
+	- QEDesignModel::uiSetProperty
+                - add createUndoCommand option to uiSetSize, uiSetTransform in model, abstract shape controller
+	- implement rectangle's "resize corners" property
+		create an override for abstract shape controller smNotifySetNodeTransform,
+		in rectangle controller, alter the case smNotifySetNodeTransform(...kSelectionModifyAfterApplyTransform) -
+		recalc the path - same as in pen controller
+	- review/reimplement rectangle's cornerProportional property acccording to QEDesignRectangleNodeMeta::kProportionalCornerProperty
+		description
+	- modifierKeyDesc() should recognize prefix combinations, not only single prefices
+		- Q what about different descs for different tool modes and execution contexts (mouse hover pos. etc.)?
+	- mFeatures
+	- snap adapters
+		- save/restore settings for all snap adapters and parameters in the snap controller
+		1) The built-in as well as custom snap adapter extensions
+		are not registered within the system as extensions.
+		2) Snap adapter interface is inherited by such classes as
+		QEDesignGrid, QEDesignGuides etc. which are members of QEDesignDocument. 
+		3) QEDesignController is the member of QEDesignDocument, and uses a reference
+		to its parent. How to and whether at all to register several (one-per-document) instances
+		of the same extension class?
+	- flags not implemented (not clear what they mean):
+		QEDesignNodeSnapAdapterMeta::
+		    kPivotPointSnap     = (1 << 5),
+		    kBaselineSnap       = (1 << 7),
+	- recheck all "~!" and "TODO" entries in source code
+
+- optimize
+	- small rects drawing
+	- split layers add a layer selector parameter to QUpdatingRect()
+	- raster images of relatively complex shapes (>10 segments) in order to make them
+		repaint extremely quickly.
+	- (only) partially update raster images for complex paths.
+		Example: complex path (> 100 elements), only one small segment (1..10% of the whole shape rect) changes.
+		Only its rectangle should be repainted and only once - when it has changed.
+		Screen updates may go tens and hundreds times more frequently, and the element
+		would simply supplay its raster image.
+		Note: rasters should include alpha channels to correctly display images painted with antialising.
+		Note 2: large rasters should be slightly comressed (RLE or something like), to avoid consuming
+		too much memory. The compression should allow for quick editing (e.g. compress each scanline separately,
+		use linked list-like structures to ease insertion-deletion of scanline parts).
+
+################## ISSUES ##################
+
+- QGraphicsScene addItem()/stackBefore() performance.
+	2012-05-25 15:37:01
+	According to measurements, non-optimized QEDesignModel::doInsertNode() takes 62 s
+	when inserting 10000 objects (q_test_add_k_shapes()).
+	Of this time, 80% is spent on QGraphicsScene addItem() + stackBefore().
+	It should be considered if QGraphicsScene can be optimized or replaced with other code
+	to keep binary search space for layer objects.
+
+- Windows auto-sends keyup for prefixes after 10 or 20 seconds
+		(fixing may require writing the full keyboard state watch)
+
+- visualization
+	- amend snap hint font visual appearance on very high zooms, if possible.
+		(incorrect font pixel size calculation by Qt on high zooms ~100..250. Too large letters ~10x of the specified size.)
+	- very high zoom, very thin shape, skewed - some resize annotations (with visibility true) are not visible,
+		but hit test and work correctly
+	- Non-transparent cursor hides the snapped point markers and small annotations.
+		To show the marker, the cursor must be xored with the viewport contents,
+		but this is not portable:
+
+		QCursor::QCursor ( const QBitmap & bitmap, const QBitmap & mask, int hotX = -1, int hotY = -1 )
+		Constructs a custom bitmap cursor.
+		...........
+		The cursor bitmap (B) and mask (M) bits are combined like this:
+		B=1 and M=1 gives black.
+		B=0 and M=1 gives white.
+		B=0 and M=0 gives transparent.
+		B=1 and M=0 gives an XOR'd result under Windows, undefined results on all other platforms.
+
+
+
+################## POSSIBLE IMPROVEMENTS ##################
+
+- improve node snap adapter
+	- return more than one successful snap in order
+		to allow combinatoric adapter finding more 
+		visually interesting combinations (now it misses some)
+	- implement tangent-to-curve snap class
+	- implement curve-to-tangent snap class
+		- implement curve sources
+	- implement curve-to-point snap class
+	- introduce multiple sides snap (several snap descriptor each for its own rect side,
+		i.e. snapping with rect resize); prototype: AI's resizing snap
+		- introduce the "resizing snap" mode, for snapping each side of the selection rect
+
+- improve usability of the snapping system.
+	1) A key press when one of the snap target objects is visible, makes it exclusive snap target,
+	i. e. any other snaps won't work until the exclusive object is released by the user command.
+	This allows to bind to some target which is currently the most important for the user as anchor.
+
+	2) Creating horizontal, vertical, diagonal guides from key+dragging sides of polygons and rectangles.
+
+	3) Creating arbitrarily shaped guides which are scaled images (bounding paths)
+	of the chosen curve-shaped objects. Scaling begins with key+dragging, ends on end drag,
+	and the guide is left on the drawing.
+	This allows correct setting several smaller objects around (and on certain distance from)
+	some large central object (benches around the fountain, for example).
+	(Note: currently, the described snap is performed by duplicating
+	the target object, evenly expanding (more complex algorithm than resizing) it,
+	snapping other objects to the expanded object, deleting the expanded object.)
+
+- Improve usability of the tool and view switching.
+	Track mouse move between views and automatically switch to the view under the mouse and
+	set the appropriate tool.
+
+- add undo/redo step counter into undo step name
+
+
+
+################## NOTES ##################
+
+- Style model
+	- rendering with pen width == 0 (i.e. 1 px in view coordinates, zoom-independent)
+		is not supported, width is corrected to min == epsScale.
+
+- QEUpdatingRect objects should not be intermediately cached anywhere (tools, shape controllers etc.)
+	outside the layer controller.
+	Currently (2012-06-11 00:38:07), views implementation keeps usual (not smart) pointers to views,
+	and removes them, notifying only the layer controller.
+
+- In all paint functions (items, tools, snaps),
+	painter combinedTransform() === worldTransform(),
+	i.e. viewport-window conversion is not used, only world transform matrix.
+	This condition is useful when it is necessary to temporarily switch painter to another transform,
+	without using save()/restore() functions.
+
+- Hand tool functions
+	- dragging == scroll the view
+	- dblclick == center at mouse pos.
+	- shift dblclick == fit all nodes
+
+- Zoom tool functions
+	- dragging == draw rect for fitted zoom, do zoom on drag finish
+	- ALT == zoom out, NO ALT == zoom in
+	- SHIFT == set max/min zoom, NO SHIFT == set next step of zoom
+	- CTRL == zoom around mouse cursor, NO CTRL == zoom around mouse cursor + scroll that point to center
+
+- Parameters, influencing the visual order of painting scene nodes:
+	- (main) node layer,
+	- node z-value,
+	- node position in the stacking order.
+Parent-child relations between nodes do not define the visual order,
+the only constraint that parent-child pair must be within the same layer,
+only if the parent is other than the root node.
+
+
+- MX basic pen vs. Qt pen
+
+	+void 	setWidth ( int width )
+	+void 	setWidthF ( qreal width )
+	+void 	setDashOffset ( qreal offset )
+	+void 	setCapStyle ( Qt::PenCapStyle style )
+	+void 	setJoinStyle ( Qt::PenJoinStyle style )
+	+void 	setMiterLimit ( qreal limit )
+	+void setColor ( const QColor & color )
+	+void setStyle ( Qt::PenStyle style )
+	- (partially, "Brush" pen)		void 	setDashPattern ( const QVector<qreal> & pattern )
+	- (not supported)		void 	setCosmetic ( bool cosmetic )
+	- (partially, in "Pattern" pen)	void 	setBrush ( const QBrush & brush )
+
+- possible ways of printing and exporting the drawing
+	a) (RGB printing)
+	- render to RGB image 8-8-8
+	- embed the actual document RGB color profile
+	- send file to printer
+	b) (RGB printing)
+	- render to RGB image 8-8-8
+	- send directly to printer
+	c) (CMYK printing/exporting)
+	- render to RGB image 8-8-8
+	- convert image from RGB color profile used in rendering into the printer CMYK profile
+	- create a PDF/X-1a document
+	- embed the rendered image
+	- embed the the printer CMYK profile
+	c) (CMYK printing/exporting alternative way)
+	- create a PDF/X-1a document
+	- embed the document CMYK profile (i.e. target device profile)
+	- embed fonts and images
+	- embed graphics as commands to printer
+
+
+
+
+- about PDF/X
+
+http://www.pdfx.ru/about/01/
+http://en.wikipedia.org/wiki/PDF/X
+
+
+
+
+- about CMYK printing problems
+
+http://en.wikipedia.org/wiki/CMYK_color_model
+
+    Since RGB and CMYK spaces are both device-dependent spaces, there is no
+simple or general conversion formula that converts between them. Conversions are
+generally done through color management systems, using color profiles that
+describe the spaces being converted. Nevertheless, the conversions cannot be
+exact, particularly where these spaces have different gamuts.
+
+http://www.computer-darkroom.com/ps9_print/ps9_print_1.htm
+
+    Desktop inkjet printers from Epson, Canon, Hewlett Packard, et al may use
+CMYK or CcMmYK coloured inks but this doesn't make them CMYK printers.
+Occasionally you'll see this type of printer referred to as Non-Postscript, but
+more often they'll be described as GDI (Windows platform) or QuickDraw (Mac
+platform) printers. The reason I stress this point so much is that the device
+drivers supplied with these printers are not designed to interpret CMYK data. So
+any attempt to produce a CMYK print directly from a desktop inkjet printer will
+result in disappointment.
+
+
+
+
+- about CIE XYZ and gamma correction
+
+X =  0,431 * R + 0,342 * G + 0,178 * B
+Y =  0,222 * R + 0,707 * G + 0,071 * B
+Z =  0,020 * R + 0,130 * G + 0,939 * B
+
+R =  3,063 * X - 1,393 * Y - 0,476 * Z
+G = -0,969 * X + 1,876 * Y + 0,042 * Z
+B =  0,068 * X - 0,229 * Y + 1,069 * Z
+
+I ~= V^gamma, V=0..1
+
+
+
+
+- the default CMYK profile used in the Expressive
+
+ISO 12647-2:2004	
+FOGRA40	
+SC (Super Calandered) Paper	
+SC_paper_eci.icc	
+ECI	
+TAC: 270% UCR/GCR: UCR Max black: 100% TVI: 16% CMY, 19% K
+
