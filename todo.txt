@@ -1,16 +1,13 @@
 ################## CURRENT WORKS ##################
 
-last changes in:
-	QEIDesignNodeController.h
-	QEIDesignStyleModel.h
-	QEDesignStyleModel.h
-	QEDesignStyleModel.cpp
-	QEDesignModelNodeItem.h
-	QEDesignModelNodeItem.cpp
-	QEDesignLayerController.cpp
-	QEDesignAbstractShapeController.cpp
-	DesignDebug.cpp
-	todo.txt
+talukdar.anirban@gmail.com
+
+http://www.google.com/url?q=http://www.tinaja.com/glib/cmindist.pdf&sa=U&ei=UjkeUN3hJIvLsgaB5IHoDg&ved=0CBcQFjAC&usg=AFQjCNEiLh8Du9-NGMxyntC6WMSCy1rY7A
+
+
+- fix: path segment alt+drag does not duplicate
+- make: first clicking on the path point with zero control points (i.e. having the same pos as their anchor point) 
+	moves the anchor point, second moves the first control point, third moves the second control point.
 
 - fix gradient size/angle/position on
 	- shape being skewed
